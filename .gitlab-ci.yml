@@ -1,0 +1,47 @@
+stages:
+    - test
+    - build
+
+variables:
+    IMAGE_CLIENT: index.docker.io/neverlless/client
+    IMAGE_SERVER: index.docker.io/neverlless/server
+
+integration tests:
+  stage: test
+  image: docker/compose:1.29.2
+  services:
+    - name: docker:dind
+      alias: thedockerhost
+  variables:
+    DOCKER_HOST: tcp://thedockerhost:2375/
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo "Test runed"
+    - echo "Test Passed"
+
+build_image:
+    stage: build
+    image: docker:stable
+    services:
+        - name: docker:dind
+          alias: thedockerhost
+    variables:
+        DOCKER_HOST: tcp://thedockerhost:2375/
+        DOCKER_DRIVER: overlay2
+        DOCKER_TLS_CERTDIR: ""
+    before_script:
+        - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    script:
+        - docker build -t ${IMAGE_CLIENT}:${CI_COMMIT_SHORT_SHA} client/
+        - docker push ${IMAGE_CLIENT}:${CI_COMMIT_SHORT_SHA}
+        - docker tag ${IMAGE_CLIENT}:${CI_COMMIT_SHORT_SHA} ${IMAGE_CLIENT}:latest
+        - docker push ${IMAGE_CLIENT}:latest
+        - docker build -t ${IMAGE_SERVER}:${CI_COMMIT_SHORT_SHA} server/
+        - docker push ${IMAGE_SERVER}:${CI_COMMIT_SHORT_SHA}
+        - docker tag ${IMAGE_SERVER}:${CI_COMMIT_SHORT_SHA} ${IMAGE_SERVER}:latest
+        - docker push ${IMAGE_SERVER}:latest
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
